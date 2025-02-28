@@ -167,7 +167,13 @@ for iFolds = 1:nFolds
             if parameter.net.beta(iter) ~= 0 && parameter.net.beta(iter1) ~= 0
                 for iter2 = 1:M
                     temporary = cov(parameter.net.activityOutput{iter1}(:,iter2),parameter.net.activityOutput{iter}(:,iter2));
-                    outputCovar(iter,iter1,iter2) = temporary(1,2);
+                    % Add this check before accessing temporary(1,2)
+                    if size(temporary, 1) >= 2 && size(temporary, 2) >= 2
+                        outputCovar(iter,iter1,iter2) = temporary(1,2);
+                    else
+                        % If vectors are perfectly correlated or identical, use 0 or another appropriate value
+                        outputCovar(iter,iter1,iter2) = 0;
+                    end
                     covariance (iter,iter1,iter2) = (covariance_old(iter,iter1,iter2)*(iFolds - 1) + (((iFolds - 1)/iFolds)*outputCovar(iter,iter1,iter2)))/iFolds;
                 end
             end
@@ -263,12 +269,12 @@ for iFolds = 1:nFolds
             
             % initiate NN weight parameters
             [ii,~] = size(parameter.net.weight{layer-1});
-            parameter.net.weight {layer}  = normrnd(0,sqrt(2/(ii+1)),[1,ii+1]);
+            parameter.net.weight {layer}  = my_normrnd(0,sqrt(2/(ii+1)),[1,ii+1]);
             parameter.net.velocity{layer} = zeros(1,ii+1);
             parameter.net.grad{layer}     = zeros(1,ii+1);
             
             % initiate new classifier weight
-            parameter.net.weightSoftmax {layer}  = normrnd(0,1,[M,2]);
+            parameter.net.weightSoftmax {layer}  = my_normrnd(0,1,[M,2]);
             parameter.net.momentumSoftmax{layer} = zeros(M,2);
             parameter.net.gradSoftmax{layer}     = zeros(M,2);
             
@@ -600,17 +606,17 @@ for iData = 1 : nData
         node(kp)        = K;
         
         % augment the weight
-        net.weight{1}   = [net.weight{1};normrnd(0,sqrt(2/(n_in+1)),[1,bb])];
+        net.weight{1}   = [net.weight{1};my_normrnd(0,sqrt(2/(n_in+1)),[1,bb])];
         net.velocity{1} = [net.velocity{1};zeros(1,bb)];
         net.grad{1}     = [net.grad{1};zeros(1,bb)];
-        net.weight{2}   = [net.weight{2} normrnd(0,sqrt(2/(K+1)),[parameter.net.initialConfig(end),1])];
+        net.weight{2}   = [net.weight{2} my_normrnd(0,sqrt(2/(K+1)),[parameter.net.initialConfig(end),1])];
         net.velocity{2} = [net.velocity{2} zeros(parameter.net.initialConfig(end),1)];
         net.grad{2}     = [net.grad{2} zeros(parameter.net.initialConfig(end),1)];
         if ly < parameter.net.nHiddenLayer
             % add weight to the following hidden layer, if the winning
             % layer is not the last hidden layer
             [wNext,~]                    = size(parameter.net.weight{ly+1});
-            parameter.net.weight{ly+1}   = [parameter.net.weight{ly+1} normrnd(0,sqrt(2/(K+1)),[wNext,1])];
+            parameter.net.weight{ly+1}   = [parameter.net.weight{ly+1} my_normrnd(0,sqrt(2/(K+1)),[wNext,1])];
             parameter.net.velocity{ly+1} = [parameter.net.velocity{ly+1} zeros(wNext,1)];
             parameter.net.grad{ly+1}     = [parameter.net.grad{ly+1} zeros(wNext,1)];
         end
@@ -783,15 +789,15 @@ net.output               = 'softmax';        %  output layer can be selected as 
 
 %% initiate weights and weight momentumCoeff for hidden layer
 for iLayer = 2 : net.nLayer - 1
-    net.weight {iLayer - 1}  = normrnd(0,sqrt(2/(net.initialConfig(iLayer-1)+1)),[net.initialConfig(iLayer),net.initialConfig(iLayer - 1)+1]);
+    net.weight {iLayer - 1}  = my_normrnd(0,sqrt(2/(net.initialConfig(iLayer-1)+1)),[net.initialConfig(iLayer),net.initialConfig(iLayer - 1)+1]);
     net.velocity{iLayer - 1} = zeros(size(net.weight{iLayer - 1}));
     net.grad{iLayer - 1}     = zeros(size(net.weight{iLayer - 1}));
-    net.c{iLayer - 1}        = normrnd(0,sqrt(2/(net.initialConfig(iLayer-1)+1)),[net.initialConfig(iLayer - 1),1]);
+    net.c{iLayer - 1}        = my_normrnd(0,sqrt(2/(net.initialConfig(iLayer-1)+1)),[net.initialConfig(iLayer - 1),1]);
 end
 
 %% initiate weights and weight momentumCoeff for output layer
 for iHiddenLayer = 1 : net.nHiddenLayer
-    net.weightSoftmax {iHiddenLayer}   = normrnd(0,sqrt(2/(size(net.weight{iHiddenLayer},1)+1)),[net.initialConfig(end),net.initialConfig(iHiddenLayer+1)+1]);
+    net.weightSoftmax {iHiddenLayer}   = my_normrnd(0,sqrt(2/(size(net.weight{iHiddenLayer},1)+1)),[net.initialConfig(end),net.initialConfig(iHiddenLayer+1)+1]);
     net.momentumSoftmax{iHiddenLayer}  = zeros(size(net.weightSoftmax{iHiddenLayer}));
     net.gradSoftmax{iHiddenLayer}      = zeros(size(net.weightSoftmax{iHiddenLayer}));
     net.beta(iHiddenLayer)             = 1;
@@ -960,4 +966,33 @@ fMeasure    = calculate_f_measure(label, predictedLabel, nClass);
             output(iData, input(iData)) = 1;
         end
     end
+end
+
+function r = my_normrnd(mu, sigma, varargin)
+    % Simple normrnd replacement using Box-Muller transform
+    if nargin > 2
+        sz = cell2mat(varargin);
+    else
+        sz = [1, 1];
+    end
+    
+    n = prod(sz);
+    u1 = rand(n, 1);
+    u2 = rand(n, 1);
+    r = mu + sigma .* sqrt(-2 * log(u1)) .* cos(2 * pi * u2);
+    r = reshape(r, sz);
+end
+
+function y = sigmf(x, params)
+    % SIGMF Sigmoid membership function
+    % Y = SIGMF(X, PARAMS) returns the sigmoid membership function
+    % evaluated at X, where PARAMS = [a c] contains the parameters:
+    % a = steepness of the curve
+    % c = center of the curve
+    
+    a = params(1);
+    c = params(2);
+    
+    % Apply sigmoid function
+    y = 1 ./ (1 + exp(-a * (x - c)));
 end

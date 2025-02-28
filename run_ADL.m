@@ -1,6 +1,6 @@
 % NANYANG TECHNOLOGICAL UNIVERSITY - NTUITIVE PTE LTD Dual License Agreement
 % Non-Commercial Use Only 
-% This NTUITIVE License Agreement, including all exhibits ("NTUITIVE-LA") is a legal agreement between you and NTUITIVE (or “we�?) located at 71 Nanyang Drive, NTU Innovation Centre, #01-109, Singapore 637722, a wholly owned subsidiary of Nanyang Technological University (“NTU�?) for the software or data identified above, which may include source code, and any associated materials, text or speech files, associated media and "online" or electronic documentation and any updates we provide in our discretion (together, the "Software"). 
+% This NTUITIVE License Agreement, including all exhibits ("NTUITIVE-LA") is a legal agreement between you and NTUITIVE (or “we�?) located at 71 Nanyang Drive, NTU Innovation Centre, #01-109, Singapore 637722, a wholly owned subsidiary of Nanyang Technological University (“NTU�?) for the software or data identified above, which may include source code, and any associated materials, text or speech files, associated media and "online" or electronic documentation and any updates we provide in our discretion (together, the "Software"). 
 % 
 % By installing, copying, or otherwise using this Software, found at https://github.com/andriash001/ADL or https://www.researchgate.net/publication/335757711_ADL_Code_mFile, you agree to be bound by the terms of this NTUITIVE-LA.  If you do not agree, do not install copy or use the Software. The Software is protected by copyright and other intellectual property laws and is licensed, not sold.   If you wish to obtain a commercial royalty bearing license to this software please contact us at mpratama@ntu.edu.sg or andriash001@e.ntu.edu.sg.
 % 
@@ -27,12 +27,13 @@
 % 12.	That this NTUITIVE-LA shall be construed and controlled by the laws of the Republic of Singapore without regard to conflicts of law.  If any provision of this NTUITIVE-LA shall be deemed unenforceable or contrary to law, the rest of this NTUITIVE-LA shall remain in full effect and interpreted in an enforceable manner that most nearly captures the intent of the original language. 
 %  
 % 
-% Do you accept all of the terms of the preceding NTUITIVE-LA license agreement? If you accept the terms, click “I Agree,�? then “Next.�?  Otherwise click “Cancel.�?
+% Do you accept all of the terms of the preceding NTUITIVE-LA license agreement? If you accept the terms, click “I Agree,�? then “Next.�?  Otherwise click “Cancel.�?
 % 
 % Copyright (c) NTUITIVE. All rights reserved.
 
 clc
 clear
+pkg load statistics
 close all
 
 %% load file
@@ -44,9 +45,24 @@ close all
 % load susy; I = 18;
 % load Hepmass; I = 28;
 % load rlcps; I = 9;
-% load permutedmnist; I = 784;
+load('/home/arjay55/code/datasets/permutedmnist.mat'); I = 784;
 % load kddcup; I = 41;
 
+% Examine data structure and ensure proper format
+disp(['Data dimensions: ', num2str(size(data))]);
+
+% Ensure data is properly formatted with features and class labels
+% If your labels are one-hot encoded (last 10 columns)
+if size(data, 2) == 794  % 784 features + 10 label columns
+    % Convert one-hot encoded labels to single column if needed
+    [~, labels] = max(data(:, 785:end), [], 2);
+    % Combine features with single labels column
+    data = [data(:, 1:784), labels];
+    disp('Converted one-hot encoded labels to single column format');
+end
+
+disp(['Modified data dimensions: ', num2str(size(data))]);
+% M=10; % number of classes
 %% run stacked autonomous deep learning
 chunkSize = 500;        % no of data in a batch
 epoch = 1;              % no of epoch
