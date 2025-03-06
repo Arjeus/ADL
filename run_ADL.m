@@ -45,32 +45,32 @@ close all
 % load susy; I = 18;
 % load Hepmass; I = 28;
 % load rlcps; I = 9;
-load('/home/arjay55/code/datasets/permutedmnist.mat'); I = 784;
+% load('/home/arjay55/code/datasets/permutedmnist.mat'); I = 784;
+load('/home/arjay55/code/datasets/digits.mat'); I = 64;
 % load kddcup; I = 41;
 
 % Examine data structure and ensure proper format
 disp(['Data dimensions: ', num2str(size(data))]);
-
 % Ensure data is properly formatted with features and class labels
 % If your labels are one-hot encoded (last 10 columns)
-if size(data, 2) == 794  % 784 features + 10 label columns
-    % Convert one-hot encoded labels to single column if needed
-    [~, labels] = max(data(:, 785:end), [], 2);
-    % Combine features with single labels column
-    data = [data(:, 1:784), labels];
-    disp('Converted one-hot encoded labels to single column format');
-end
 
 disp(['Modified data dimensions: ', num2str(size(data))]);
 % M=10; % number of classes
 %% run stacked autonomous deep learning
-chunkSize = 500;        % no of data in a batch
+chunkSize = 359;        % no of data in a batch
 epoch = 1;              % no of epoch
 alpha_w = 0.0005;       % alpha warning
 alpha_d = 0.0001;       % alpha drift
 delta   = 0.05;         % pruning layer coefficient delta
 [parameter,performance] = ADL(data,I,chunkSize,epoch,alpha_w,alpha_d,...
     delta);
+
+eval_config = struct('compute_overall_accuracy', true);
+[~, ~, overall_accuracy] = ADL(data, I, size(data,1), 0, alpha_w, alpha_d, delta, parameter, eval_config);
+
+fprintf('Overall accuracy (mean of chunks): %.4f\n', performance.classification_rate(1));
+fprintf('Overall accuracy (full dataset): %.4f\n', overall_accuracy);
+
 clear data
 disp(performance)
 

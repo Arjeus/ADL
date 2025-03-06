@@ -47,7 +47,21 @@
 % equation 4.16 is implemented in the line 416
 
 %% main code
-function [parameter,performance] = ADL(data,I,chunkSize,epoch,alpha_w,alpha_d,delta)
+function [parameter, performance, overall_accuracy] = ADL(data, I, chunkSize, epoch, alpha_w, alpha_d, delta, prev_parameter, config)
+    % Check if this is an evaluation run
+    eval_mode = false;
+    overall_accuracy = 0;
+    if nargin > 7 && ~isempty(prev_parameter) && nargin > 8 && isfield(config, 'compute_overall_accuracy')
+        if config.compute_overall_accuracy
+            eval_mode = true;
+            parameter = prev_parameter; % Use existing parameters
+            % Do evaluation on full dataset using existing functions
+            overall_accuracy = computeOverallAccuracy(parameter, data);
+            return;
+        end
+    end
+    
+    
 %% divide the data into nFolds chunks
 dataProportion = 1;     % portion of labeled samples, 0-1
 fprintf('=========Autonomous Deep Learning is started=========\n')
@@ -130,6 +144,7 @@ parameter.prune_list_index = [];
 for iFolds = 1:nFolds
     %% load the data chunk-by-chunk
     x = Data{iFolds}(:,1:I);
+
     T = Data{iFolds}(:,I+1:mn);
     [bd,~] = size(T);
     clear Data{t}
@@ -269,12 +284,12 @@ for iFolds = 1:nFolds
             
             % initiate NN weight parameters
             [ii,~] = size(parameter.net.weight{layer-1});
-            parameter.net.weight {layer}  = my_normrnd(0,sqrt(2/(ii+1)),[1,ii+1]);
+            parameter.net.weight {layer}  = normrnd(0,sqrt(2/(ii+1)),[1,ii+1]);
             parameter.net.velocity{layer} = zeros(1,ii+1);
             parameter.net.grad{layer}     = zeros(1,ii+1);
             
             % initiate new classifier weight
-            parameter.net.weightSoftmax {layer}  = my_normrnd(0,1,[M,2]);
+            parameter.net.weightSoftmax {layer}  = normrnd(0,1,[M,2]);
             parameter.net.momentumSoftmax{layer} = zeros(M,2);
             parameter.net.gradSoftmax{layer}     = zeros(M,2);
             
@@ -410,6 +425,7 @@ end
 %% testing phase of ADL
 function [net] = testing(net, input, trueClass, ev)
 %% feedforward
+
 net              = netFeedForward(net, input, trueClass);
 [nData,m2]       = size(trueClass);
 decreasingFactor = 0.001;
@@ -606,17 +622,17 @@ for iData = 1 : nData
         node(kp)        = K;
         
         % augment the weight
-        net.weight{1}   = [net.weight{1};my_normrnd(0,sqrt(2/(n_in+1)),[1,bb])];
+        net.weight{1}   = [net.weight{1};normrnd(0,sqrt(2/(n_in+1)),[1,bb])];
         net.velocity{1} = [net.velocity{1};zeros(1,bb)];
         net.grad{1}     = [net.grad{1};zeros(1,bb)];
-        net.weight{2}   = [net.weight{2} my_normrnd(0,sqrt(2/(K+1)),[parameter.net.initialConfig(end),1])];
+        net.weight{2}   = [net.weight{2} normrnd(0,sqrt(2/(K+1)),[parameter.net.initialConfig(end),1])];
         net.velocity{2} = [net.velocity{2} zeros(parameter.net.initialConfig(end),1)];
         net.grad{2}     = [net.grad{2} zeros(parameter.net.initialConfig(end),1)];
         if ly < parameter.net.nHiddenLayer
             % add weight to the following hidden layer, if the winning
             % layer is not the last hidden layer
             [wNext,~]                    = size(parameter.net.weight{ly+1});
-            parameter.net.weight{ly+1}   = [parameter.net.weight{ly+1} my_normrnd(0,sqrt(2/(K+1)),[wNext,1])];
+            parameter.net.weight{ly+1}   = [parameter.net.weight{ly+1} normrnd(0,sqrt(2/(K+1)),[wNext,1])];
             parameter.net.velocity{ly+1} = [parameter.net.velocity{ly+1} zeros(wNext,1)];
             parameter.net.grad{ly+1}     = [parameter.net.grad{ly+1} zeros(wNext,1)];
         end
@@ -789,15 +805,15 @@ net.output               = 'softmax';        %  output layer can be selected as 
 
 %% initiate weights and weight momentumCoeff for hidden layer
 for iLayer = 2 : net.nLayer - 1
-    net.weight {iLayer - 1}  = my_normrnd(0,sqrt(2/(net.initialConfig(iLayer-1)+1)),[net.initialConfig(iLayer),net.initialConfig(iLayer - 1)+1]);
+    net.weight {iLayer - 1}  = normrnd(0,sqrt(2/(net.initialConfig(iLayer-1)+1)),[net.initialConfig(iLayer),net.initialConfig(iLayer - 1)+1]);
     net.velocity{iLayer - 1} = zeros(size(net.weight{iLayer - 1}));
     net.grad{iLayer - 1}     = zeros(size(net.weight{iLayer - 1}));
-    net.c{iLayer - 1}        = my_normrnd(0,sqrt(2/(net.initialConfig(iLayer-1)+1)),[net.initialConfig(iLayer - 1),1]);
+    net.c{iLayer - 1}        = normrnd(0,sqrt(2/(net.initialConfig(iLayer-1)+1)),[net.initialConfig(iLayer - 1),1]);
 end
 
 %% initiate weights and weight momentumCoeff for output layer
 for iHiddenLayer = 1 : net.nHiddenLayer
-    net.weightSoftmax {iHiddenLayer}   = my_normrnd(0,sqrt(2/(size(net.weight{iHiddenLayer},1)+1)),[net.initialConfig(end),net.initialConfig(iHiddenLayer+1)+1]);
+    net.weightSoftmax {iHiddenLayer}   = normrnd(0,sqrt(2/(size(net.weight{iHiddenLayer},1)+1)),[net.initialConfig(end),net.initialConfig(iHiddenLayer+1)+1]);
     net.momentumSoftmax{iHiddenLayer}  = zeros(size(net.weightSoftmax{iHiddenLayer}));
     net.gradSoftmax{iHiddenLayer}      = zeros(size(net.weightSoftmax{iHiddenLayer}));
     net.beta(iHiddenLayer)             = 1;
@@ -968,19 +984,49 @@ fMeasure    = calculate_f_measure(label, predictedLabel, nClass);
     end
 end
 
-function r = my_normrnd(mu, sigma, varargin)
-    % Simple normrnd replacement using Box-Muller transform
-    if nargin > 2
-        sz = cell2mat(varargin);
-    else
-        sz = [1, 1];
+function overall_accuracy = computeOverallAccuracy(parameter, fullDataset)
+    % This function computes accuracy on the entire dataset at once
+    % parameter: the trained ADL model parameters
+    % fullDataset: the complete dataset with features and labels
+    
+    fprintf('Computing overall accuracy on full dataset...\n');
+    
+    % Extract input features and true labels
+
+    [nTotalData, mn] = size(fullDataset);
+    I = parameter.net.initialConfig(1);  % Number of input features
+    M = mn - I;  % Number of classes
+    x = fullDataset(:, 1:I);
+    trueClass = fullDataset(:, I+1:mn);
+    
+    % Get actual labels
+    [~,actualLabels] = max(trueClass,[],2);
+    
+    % Initialize prediction variables
+    net = parameter.net;
+    predictions = zeros(nTotalData, M);
+    
+    % Forward pass through network using final model parameters
+    net = netFeedForward(net, x, trueClass);
+    
+    % Compute final predictions by weighted voting of all active layers
+    for iData = 1:nTotalData
+        for iHiddenLayer = 1:net.nHiddenLayer
+            if net.beta(iHiddenLayer) ~= 0
+                % Apply layer weight (beta) to each layer's output
+                predictions(iData,:) = predictions(iData,:) + net.activityOutput{iHiddenLayer}(iData,:) * net.betaOld(iHiddenLayer);
+            end
+        end
     end
     
-    n = prod(sz);
-    u1 = rand(n, 1);
-    u2 = rand(n, 1);
-    r = mu + sigma .* sqrt(-2 * log(u1)) .* cos(2 * pi * u2);
-    r = reshape(r, sz);
+    % Get predicted labels
+    predictedLabels = predictions;
+    
+    % Calculate overall accuracy
+    wrongPredictions = numel(find(predictedLabels ~= actualLabels));
+    overall_accuracy = 1 - wrongPredictions/nTotalData;
+    
+    fprintf('Overall accuracy on full dataset: %.4f\n', overall_accuracy);
 end
 
 function y = sigmf(x, params)
@@ -996,3 +1042,8 @@ function y = sigmf(x, params)
     % Apply sigmoid function
     y = 1 ./ (1 + exp(-a * (x - c)));
 end
+% Add this line at the end of run_ADL.m
+save('adl_results.mat', 'parameter', 'performance');
+
+% At the end of the ADL function, add:
+% If full dataset is available, compute overall accuracy
