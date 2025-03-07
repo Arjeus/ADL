@@ -66,6 +66,7 @@ function [parameter, performance, overall_accuracy] = ADL(data, I, chunkSize, ep
 dataProportion = 1;     % portion of labeled samples, 0-1
 fprintf('=========Autonomous Deep Learning is started=========\n')
 [nData,mn] = size(data);
+keyboard;
 M = mn - I;
 l = 0;
 nFolds       = round(size(data,1)/chunkSize);                 % number of data chunk
@@ -1020,7 +1021,7 @@ function overall_accuracy = computeOverallAccuracy(parameter, fullDataset)
     end
     
     % Get predicted labels
-    predictedLabels = predictions;
+    [~,predictedLabels] = max(predictions,[],2);
     
     % Calculate overall accuracy
     wrongPredictions = numel(find(predictedLabels ~= actualLabels));
